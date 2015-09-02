@@ -54,6 +54,7 @@ use std::io;
 use std::mem::transmute;
 
 use mio::{TryRead, TryWrite, Token, EventLoop, EventSet};
+use mio::tcp::TcpStream;
 use std::any::Any;
 use std::marker::{PhantomData, Reflect};
 use mio::util::Slab;
@@ -855,6 +856,15 @@ where T : mio::TryAccept+Reflect+'static {
                 }
             }
         }
+    }
+}
+
+impl EventSource<TcpStream> {
+    /// Block until Stream is connected, or return error.
+    pub fn connect_wait(&self) -> io::Result<()> {
+        self.block_on(RW::Write);
+
+        self.with_raw(|sock| sock.take_socket_error())
     }
 }
 
