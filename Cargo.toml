@@ -12,7 +12,7 @@ readme = "README.md"
 
 [profile.release]
 opt-level = 3
-debug = false
+debug = true
 lto = true
 debug-assertions = false
 
