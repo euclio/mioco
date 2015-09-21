@@ -412,7 +412,7 @@ pub struct Coroutine {
     shared : RcCoroutineShared,
 
     /// Coroutine stack
-    stack: Stack,
+    stack: Option<Stack>,
 
     /// All event sources
     io : Vec<RcEventSourceShared>,
@@ -662,12 +662,21 @@ impl CoroutineControl {
     }
 }
 
+impl Drop for Coroutine {
+    fn drop(&mut self) {
+        let handler_shared = std::mem::replace(&mut self.shared.borrow_mut().handler_shared, None).unwrap();
+        let stack =  std::mem::replace(&mut self.stack, None).unwrap();
+        handler_shared.borrow_mut().stack_pool.push(stack);
+    }
+}
 impl Coroutine {
 
     /// Spawn a new Coroutine
     fn spawn<F>(handler_shared : RcHandlerShared, f : F) -> RcCoroutine
     where F : FnOnce(&mut MiocoHandle) -> io::Result<()> + Send + 'static {
         trace!("Coroutine: spawning");
+        let stack = handler_shared.borrow_mut().stack_pool.pop().unwrap_or_else(|| Stack::new(1024 * 1024));
+
         let id = handler_shared.borrow_mut().coroutines.insert_with(|id| {
             let id = CoroutineId(id.as_usize());
 
@@ -682,11 +691,12 @@ impl Coroutine {
                 registered: Default::default(),
             };
 
+
             let coroutine = Coroutine {
                 shared: Rc::new(RefCell::new(shared)),
                 io: Vec::with_capacity(4),
                 children_to_start: Vec::new(),
-                stack: Stack::new(1024 * 1024),
+                stack: Some(stack),
                 coroutine_func: Some(Box::new(f)),
             };
 
@@ -786,7 +796,7 @@ impl Coroutine {
             context.init_with_unboxed(
                 init_fn,
                 coroutine_ptr as usize,
-                stack,
+                stack.as_mut().unwrap(),
                 );
         }
 
@@ -1488,6 +1498,9 @@ struct HandlerShared {
 
     /// Shared between threads
     thread_shared : ArcHandlerThreadShared,
+
+    /// Stack Pool
+    stack_pool : Vec<Stack>,
 }
 
 impl HandlerShared {
@@ -1497,6 +1510,7 @@ impl HandlerShared {
             thread_shared: thread_shared,
             context: Context::empty(),
             senders: senders,
+            stack_pool: Vec::with_capacity(1024),
         }
     }
 
