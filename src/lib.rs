@@ -853,7 +853,7 @@ impl Coroutine {
 
             let coroutine = Coroutine {
                 shared: Rc::new(RefCell::new(shared)),
-                io: Slab::new(1024), // TODO: Need growing Slab, so cheaper to create
+                io: Slab::new(4),
                 children_to_start: Vec::new(),
                 stack: Stack::new(stack_size),
                 coroutine_func: Some(Box::new(f)),
@@ -1538,6 +1538,11 @@ impl<'a> MiocoHandle<'a> {
             } = self.coroutine;
 
             let co_shared = self.coroutine.shared.clone();
+
+            if !io.has_remaining() {
+                let count = io.count();
+                io.grow(count);
+            }
 
             let index = io.insert_with(|index| {
                 let io_new = {
