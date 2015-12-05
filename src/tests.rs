@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use time::{SteadyTime, Duration};
 
 use std::thread;
+use std;
 
 const THREADS_N : [usize; 4] = [1, 2, 5, 21];
 
